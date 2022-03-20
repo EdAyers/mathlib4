@@ -19,6 +19,11 @@ namespace Binder
     let (l,r) := b.info.brackets
     s!"{l}{b.name} : {b.type}{r}"
 
+  def pp (b : Binder) : MetaM Format := do
+    let (l,r) := b.info.brackets
+    let type ← Meta.ppExpr b.type
+    return f!"{l}{b.name} : {type}{r}"
+
   def toForall : Binder → Expr → Expr
     | ⟨name, info, type⟩, body => mkForall name info type body
 
