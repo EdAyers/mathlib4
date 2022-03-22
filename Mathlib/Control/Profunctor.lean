@@ -13,61 +13,78 @@ Definitions for (non-lawful) profunctors.
 
 -/
 
-class Profunctor (P : Type → Type → Type) :=
+/-- A profunctor `P` is a function `Type u → Type u → Type v` that is a functor
+on the second argument and a contravariant functor on the first.
+
+Reference: https://en.wikipedia.org/wiki/Profunctor
+ -/
+class Profunctor (P : Type u → Type v → Type w) :=
   (dimap {α α' β β'} : (α' → α) → (β → β') → P α β → P α' β')
 
 export Profunctor (dimap)
 
 namespace Profunctor
 
-class StrongCore (P : Type → Type → Type) :=
-(first {α β} (χ) : P α β → P (α × χ) (β × χ))
-(second {α β} (χ) : P α β → P (χ × α) (χ × β))
+class StrongCore (P : Type u → Type u → Type v) :=
+(first {α β : Type u} (χ : Type u) : P α β → P (α × χ) (β × χ))
+(second {α β : Type u} (χ : Type u) : P α β → P (χ × α) (χ × β))
 
 export StrongCore (first second)
 
-class ChoiceCore (P : Type → Type → Type) :=
-(left  {α β} (χ) : P α β → P (α ⊕ χ) (β ⊕ χ))
-(right {α β} (χ) : P α β → P (χ ⊕ α) (χ ⊕ β))
+class ChoiceCore (P : Type u → Type u → Type v) :=
+(left  {α β} (χ : Type u) : P α β → P (α ⊕ χ) (β ⊕ χ))
+(right {α β} (χ : Type u) : P α β → P (χ ⊕ α) (χ ⊕ β))
 
 export ChoiceCore (left right)
 
-class ClosedCore (P : Type → Type → Type) :=
-(close {α β : Type} : ∀ (X : Type), P α β → P (X → α) (X → β))
+class ClosedCore (P : Type u → Type u → Type v) :=
+(close {α β} : ∀ (X : Type u), P α β → P (X → α) (X → β))
 
-class CostrongCore (P : Type → Type → Type) :=
-(unfirst  {α β} (χ : Type) : P (α × χ) (β × χ) → P α β)
-(unsecond {α β} (χ : Type) : P (χ × α) (χ × β) → P α β)
+class CostrongCore (P : Type u → Type u → Type v) :=
+(unfirst  {α β : Type u} (χ : Type u) : P (α × χ) (β × χ) → P α β)
+(unsecond {α β : Type u} (χ : Type u) : P (χ × α) (χ × β) → P α β)
 
-class Affine (P : Type → Type → Type) extends Profunctor P, StrongCore P, ChoiceCore P
-class Strong (P : Type → Type → Type) extends Profunctor P, StrongCore P
-class Costrong (P : Type → Type → Type) extends Profunctor P, CostrongCore P
-class Choice (P : Type → Type → Type) extends Profunctor P, ChoiceCore P
-class Closed (P : Type → Type → Type) extends Profunctor P, ClosedCore P
+class Affine (P : Type u → Type u → Type v) extends Profunctor P, StrongCore P, ChoiceCore P
+/-- A strong profunctor is one that 'plays nice' with products.-/
+class Strong (P : Type u → Type u → Type v) extends Profunctor P, StrongCore P
+class Costrong (P : Type u → Type u → Type v) extends Profunctor P, CostrongCore P
+/-- A strong profunctor is one that 'plays nice' with sums.-/
+class Choice (P : Type u → Type u → Type v) extends Profunctor P, ChoiceCore P
+class Closed (P : Type u → Type u → Type v) extends Profunctor P, ClosedCore P
 
-def Star (F : Type → Type) (α β : Type) := α → F β
+/-- `Star F α β = α → F β`-/
+def Star (F : Type u → Type v) (α : Type w) (β : Type u) := α → F β
 
-class Representable (P : Type → Type → Type) :=
-(Rep : Type → Type)
+/-- A profunctor is representable when there is a functor `Rep` such there is a
+natural isomorphism between  `P α β` and `α → Rep β`.
+
+Contrast this with the definition of a representable functor `F`, where there is a `R : Type` such that `F α ≃ R → α`
+  -/
+class Representable (P : Type u → Type u → Type v) :=
+(Rep : Type u → Type v)
 (eqv {α β} : P α β ≃ Star Rep α β)
 
 export Representable (Rep)
 
+/-- Sends an element of `P α β` to its representative `α → Rep P β`. Inverse of `Representable.tabulate` -/
 def Representable.sieve [Representable P] : P α β → (α → Rep P β) := Representable.eqv.toFun
+/-- Inverse of `Representable.sieve`.-/
 def Representable.tabulate [Representable P] : (α → Rep P β) → P α β := Representable.eqv.invFun
 
+/-- Lists a transform `f : Star Rep ⇒ Star Rep` to `P ⇒ P`-/
 def Representable.lift [Representable P] {α β σ τ}
   (f : (α → Rep P β) → σ → Rep P τ) : P α β → P σ τ
   := tabulate ∘ f ∘ sieve
 
-class Traversing (P : Type → Type → Type) extends (Representable P) :=
+/-- A traversing profunctor is a representable functor where `Rep` is applicative. -/
+class Traversing (P) extends (Representable P) :=
 [a : Applicative (Rep)]
 
 namespace Star
 
-  variable {F : Type → Type} [Functor F]
+  variable {F : Type u → Type v}
 
-  instance : Profunctor (Star F) where
+  instance [Functor F] : Profunctor (Star F) where
     dimap f g h a := g <$> (h $ f a)
 
   instance [Pure F] [Functor F] : Choice (Star F) where
@@ -78,14 +95,14 @@ namespace Star
     first := fun χ f (a,c) =>  (fun a => (a, c)) <$> f a
     second := fun χ f (c,a) => (fun a => (c, a)) <$> f a
 
-  instance : Representable (Star F) where
+  instance {F : Type u → Type u} : Representable (Star F) where
     Rep := F
     eqv := Equiv.refl _
 
 end Star
 
-def Yoneda (P : Type → Type → Type) (α β : Type) :=
-  {φ χ : Type} → (φ → α) → (β → χ) → P φ χ
+def Yoneda (P : Type u → Type u → Type v) (α β : Type u) :=
+  ⦃φ χ : Type u⦄ → (φ → α) → (β → χ) → P φ χ
 
 namespace Yoneda
 
