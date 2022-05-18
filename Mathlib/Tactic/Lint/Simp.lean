@@ -83,11 +83,12 @@ open Std
 -- This function computes the map ``{`decl._auxLemma.1 ↦ `decl}``
 def constToSimpDeclMap (ctx : Simp.Context) : HashMap Name Name := Id.run do
   let mut map : HashMap Name Name := {}
-  for sls in [ctx.simpTheorems.pre, ctx.simpTheorems.post] do
-    for sl in ((elements sls).run #[]).2 do
-      if let some declName := sl.name? then
-        if let some auxDeclName := sl.proof.getAppFn.constName? then
-          map := map.insert auxDeclName declName
+  for sls' in ctx.simpTheorems do
+    for sls in [sls'.pre, sls'.post] do
+      for sl in ((elements sls).run #[]).2 do
+        if let some declName := sl.name? then
+          if let some auxDeclName := sl.proof.getAppFn.constName? then
+            map := map.insert auxDeclName declName
   return map
 
 def isEqnLemma? (n : Name) : Option Name :=
@@ -99,7 +100,7 @@ def isEqnLemma? (n : Name) : Option Name :=
 def heuristicallyExtractSimpTheoremsCore (ctx : Simp.Context) (constToSimpDecl : HashMap Name Name) (prf : Expr) : Array Name := Id.run do
   let mut cnsts : HashSet Name := {}
   for c in prf.getUsedConstants do
-    if ctx.simpTheorems.toUnfold.contains c then
+    if ctx.simpTheorems.isDeclToUnfold c then
       cnsts := cnsts.insert c
     else if ctx.congrTheorems.lemmas.contains c then
       cnsts := cnsts.insert c
@@ -138,6 +139,8 @@ https://leanprover-community.github.io/mathlib_docs/notes.html#simp-normal%20for
     let lhs_in_nf ← isSimpEq lhs' lhs
     if lhs'_eq_rhs' then do
       if prf1.isNone then return none -- TODO: cannot detect used rfl-lemmas
+      if let Name.str n "sizeOf_spec" _ := declName then
+        return none -- HACK: these often use rfl-lemmas but are not rfl
       let used_lemmas := heuristicallyExtractSimpTheorems ctx <|
         mkApp (prf1.getD (mkBVar 0)) (prf2.getD (mkBVar 0))
       return m!"simp can prove this:

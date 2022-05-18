@@ -32,6 +32,7 @@ initialize registerTraceClass `Tactic.librarySearch
 
 -- from Lean.Server.Completion
 private def isBlackListed (declName : Name) : MetaM Bool := do
+  if declName == ``sorryAx then return false
   if declName matches Name.str _ "inj" _ then return false
   if declName matches Name.str _ "noConfusionType" _ then return false
   let env ← getEnv
@@ -115,7 +116,8 @@ elab_rules : tactic | `(tactic| library_search%$tk) => do
   withMVarContext introdMVar do
     if let some suggestions ← librarySearch introdMVar (← librarySearchLemmas.get) then
       for suggestion in suggestions do
-        addExactSuggestion tk (← instantiateMVars (mkMVar mvar))
+        withMCtx suggestion.1 do
+          addExactSuggestion tk (← instantiateMVars (mkMVar mvar))
       admitGoal introdMVar
     else
       addExactSuggestion tk (← instantiateMVars (mkMVar mvar))
@@ -129,7 +131,8 @@ elab tk:"library_search%" : term <= expectedType => do
   withMVarContext introdMVar do
     if let some suggestions ← librarySearch introdMVar (← librarySearchLemmas.get) then
       for suggestion in suggestions do
-        addTermSuggestion tk (← instantiateMVars mvar)
+        withMCtx suggestion.1 do
+          addTermSuggestion tk (← instantiateMVars mvar)
       mkSorry expectedType (synthetic := true)
     else
       addTermSuggestion tk (← instantiateMVars mvar)

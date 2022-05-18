@@ -43,10 +43,15 @@ import Mathlib.Init.Function
 import Mathlib.Init.Logic
 import Mathlib.Init.Set
 import Mathlib.Init.SetNotation
+import Mathlib.Lean.Exception
 import Mathlib.Lean.Expr
+import Mathlib.Lean.Expr.Basic
+import Mathlib.Lean.Expr.Binder
 import Mathlib.Lean.Expr.ReplaceRec
 import Mathlib.Lean.Expr.Traverse
+import Mathlib.Lean.Expr.Zipper
 import Mathlib.Lean.LocalContext
+import Mathlib.Lean.NameMapAttribute
 import Mathlib.Logic.Basic
 import Mathlib.Logic.Function.Basic
 import Mathlib.Logic.Nonempty
@@ -63,7 +68,9 @@ import Mathlib.Tactic.Conv
 import Mathlib.Tactic.Core
 import Mathlib.Tactic.Ext
 import Mathlib.Tactic.Find
+import Mathlib.Tactic.Have
 import Mathlib.Tactic.IrreducibleDef
+import Mathlib.Tactic.LeftRight
 import Mathlib.Tactic.LibrarySearch
 import Mathlib.Tactic.Lint
 import Mathlib.Tactic.Lint.Basic
@@ -87,6 +94,7 @@ import Mathlib.Tactic.Ring
 import Mathlib.Tactic.RunCmd
 import Mathlib.Tactic.RunTac
 import Mathlib.Tactic.Sat.FromLRAT
+import Mathlib.Tactic.Set
 import Mathlib.Tactic.ShowTerm
 import Mathlib.Tactic.SimpRw
 import Mathlib.Tactic.Simpa
@@ -94,8 +102,12 @@ import Mathlib.Tactic.Simps
 import Mathlib.Tactic.SolveByElim
 import Mathlib.Tactic.Spread
 import Mathlib.Tactic.SudoSetOption
+import Mathlib.Tactic.ToAdditive
 import Mathlib.Tactic.TryThis
 import Mathlib.Tactic.Use
+import Mathlib.Testing.SlimCheck.Gen
+import Mathlib.Testing.SlimCheck.Sampleable
+import Mathlib.Testing.SlimCheck.Testable
 import Mathlib.Util.DeclName
 import Mathlib.Util.Eval
 import Mathlib.Util.Export

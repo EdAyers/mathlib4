@@ -24,7 +24,8 @@ def proveEqUsing (s : SimpTheorems) (a b : Expr) : MetaM (Option Simp.Result) :=
     let b' ← Simp.simp b methods
     unless ← isDefEq a'.expr b'.expr do return none
     mkEqTrans a' (← mkEqSymm b b')
-  withReducible do (go { simpTheorems := s, congrTheorems := ← Meta.getSimpCongrTheorems }).run' {}
+  withReducible do
+    (go { simpTheorems := #[s], congrTheorems := ← Meta.getSimpCongrTheorems }).run' {}
 
 /-- Prove `a = b` by simplifying using move and squash lemmas. -/
 def proveEqUsingDown (a b : Expr) : MetaM (Option Simp.Result) := do
@@ -63,11 +64,11 @@ is rewritten to:            op (↑(↑(x : α) : β) : γ) (↑(y : β) : γ)
 when (↑(↑(x : α) : β) : γ) = (↑(x : α) : γ) can be proven with a squash lemma
 -/
 def splittingProcedure (expr : Expr) : MetaM Simp.Result := do
-  let Expr.app (Expr.app op x ..) y .. := expr | return {expr}
+  let Expr.app (Expr.app op x ..) y .. := expr | return {expr := expr}
 
-  let Expr.forallE _ γ (Expr.forallE _ γ' ty ..) .. ← inferType op | return {expr}
-  if γ'.hasLooseBVars || ty.hasLooseBVars then return {expr}
-  unless ← isDefEq γ γ' do return {expr}
+  let Expr.forallE _ γ (Expr.forallE _ γ' ty ..) .. ← inferType op | return {expr := expr}
+  if γ'.hasLooseBVars || ty.hasLooseBVars then return {expr := expr}
+  unless ← isDefEq γ γ' do return {expr := expr}
 
   try
     let some x' ← isCoeOf? x | failure
@@ -99,7 +100,7 @@ def splittingProcedure (expr : Expr) : MetaM Simp.Result := do
     let some x_x2 ← proveEqUsingDown x x2 | failure
     Simp.mkCongrFun (← Simp.mkCongr {expr := op} x_x2) y
   catch _ =>
-    return {expr}
+    return {expr := expr}
 
 /--
 Discharging function used during simplification in the "squash" step.
@@ -119,8 +120,9 @@ It tries to rewrite an expression using the elim and move lemmas.
 On failure, it calls the splitting procedure heuristic.
 -/
 partial def upwardAndElim (up : SimpTheorems) (e : Expr) : SimpM Simp.Step := do
-  let r ← Simp.rewrite e up.post up.erased prove (tag := "squash")
-  let r ← mkEqTrans r <|<- splittingProcedure r.expr
+  let r ← Simp.rewrite? e up.post up.erased prove (tag := "squash") (rflOnly := false)
+  let r := r.getD { expr := e }
+  let r ← mkEqTrans r <|← splittingProcedure r.expr
   if r.expr == e then return Simp.Step.done {expr := e}
   return Simp.Step.visit r
 
@@ -155,18 +157,18 @@ def derive (e : Expr) : MetaM Simp.Result := do
   trace[Tactic.norm_cast] "before: {r.expr}"
 
   -- step 1: pre-processing of numerals
-  let r ← mkEqTrans r <|<- Simp.main r.expr { config, congrTheorems }
+  let r ← mkEqTrans r <|<- Simp.main r.expr { config := config, congrTheorems }
     { post := fun e => return Simp.Step.done (← try numeralToCoe e catch _ => pure {expr := e}) }
   trace[Tactic.norm_cast] "after numeralToCoe: {r.expr}"
 
   -- step 2: casts are moved upwards and eliminated
-  let r ← mkEqTrans r <|<- Simp.main r.expr { config, congrTheorems }
+  let r ← mkEqTrans r <|<- Simp.main r.expr { config := config, congrTheorems }
     { post := upwardAndElim (← normCastExt.up.getTheorems) }
   trace[Tactic.norm_cast] "after upwardAndElim: {r.expr}"
 
   -- step 3: casts are squashed
   let r ← mkEqTrans r <|<- simp r.expr {
-    simpTheorems := ← normCastExt.squash.getTheorems
+    simpTheorems := #[← normCastExt.squash.getTheorems]
     config, congrTheorems
   }
   trace[Tactic.norm_cast] "after squashing: {r.expr}"
@@ -199,9 +201,9 @@ def normCastHyp (fvarId : FVarId) : TacticM Unit :=
   liftMetaTactic1 fun mvarId => do
     let hyp ← instantiateMVars (← getLocalDecl fvarId).type
     let prf ← derive hyp
-    return (← applySimpResultToLocalDecl mvarId fvarId prf).map (·.snd)
+    return (← applySimpResultToLocalDecl mvarId fvarId prf false).map (·.snd)
 
-elab "norm_cast0" loc:(ppSpace location)? : tactic =>
+elab "norm_cast0" loc:((ppSpace location)?) : tactic =>
   withMainContext do
     match expandOptLocation loc with
     | Location.targets hyps target =>
@@ -219,7 +221,6 @@ macro "assumption_mod_cast" : tactic => `(norm_cast0 at * <;> assumption)
 Normalize casts at the given locations by moving them "upwards".
 -/
 macro "norm_cast" loc:(ppSpace location)? : tactic =>
-  let loc := loc.getOptional?
   `(tactic| norm_cast0 $[$loc:location]? <;> try trivial)
 
 /--
@@ -249,7 +250,7 @@ syntax (name := convNormCast) "norm_cast" : conv
 
 syntax (name := pushCast) "push_cast " (config)? (discharger)? (&"only ")? ("[" (simpStar <|> simpErase <|> simpLemma),* "]")? (location)? : tactic
 @[tactic pushCast] def evalPushCast : Tactic := fun stx => do
-  let { ctx, fvarIdToLemmaId, dischargeWrapper } ← withMainContext do
+  let { ctx := ctx, fvarIdToLemmaId, dischargeWrapper } ← withMainContext do
     mkSimpContext' (← pushCastExt.getTheorems) stx (eraseLocal := false)
   dischargeWrapper.with fun discharge? =>
     simpLocation ctx discharge? fvarIdToLemmaId (expandOptLocation stx[5])
@@ -311,4 +312,3 @@ The implementation and behavior of the `norm_cast` family is described in detail
 --                  ``tactic.interactive.exact_mod_cast, ``tactic.interactive.push_cast],
 --   tags       := ["coercions", "simplification"] }
 -- TODO
-

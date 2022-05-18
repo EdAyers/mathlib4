@@ -63,7 +63,8 @@ export private mkDischargeWrapper elabSimpArgs from Lean.Elab.Tactic.Simp
   If `ctx == false`, the config argument is assumed to have type `Meta.Simp.Config`, and `Meta.Simp.ConfigCtx` otherwise.
   If `ctx == false`, the `discharge` option must be none -/
 def mkSimpContext' (simpTheorems : SimpTheorems) (stx : Syntax) (eraseLocal : Bool)
-    (ctx := false) (ignoreStarArg : Bool := false) : TacticM MkSimpContextResult := do
+    (kind := SimpKind.simp) (ctx := false) (ignoreStarArg : Bool := false) :
+    TacticM MkSimpContextResult := do
   if ctx && !stx[2].isNone then
     throwError "'simp_all' tactic does not support 'discharger' option"
   let dischargeWrapper ← mkDischargeWrapper stx[2]
@@ -74,25 +75,25 @@ def mkSimpContext' (simpTheorems : SimpTheorems) (stx : Syntax) (eraseLocal : Bo
     else
       pure simpTheorems
   let congrTheorems ← Meta.getSimpCongrTheorems
-  let r ← elabSimpArgs stx[4] (eraseLocal := eraseLocal) {
-    config      := (← elabSimpConfig stx[1] (ctx := ctx))
-    simpTheorems, congrTheorems
+  let r ← elabSimpArgs stx[4] (eraseLocal := eraseLocal) (kind := kind) {
+    config       := (← elabSimpConfig stx[1] (kind := kind))
+    simpTheorems := #[simpTheorems], congrTheorems
   }
   if !r.starArg || ignoreStarArg then
     return { r with fvarIdToLemmaId := {}, dischargeWrapper }
   else
     let ctx := r.ctx
-    let erased := ctx.simpTheorems.erased
+    let mut simpTheorems := ctx.simpTheorems
     let hs ← getPropHyps
     let mut ctx := ctx
     let mut fvarIdToLemmaId := {}
     for h in hs do
       let localDecl ← getLocalDecl h
-      unless erased.contains localDecl.userName do
+      unless simpTheorems.isErased localDecl.userName do
         let fvarId := localDecl.fvarId
         let proof  := localDecl.toExpr
         let id     ← mkFreshUserName `h
         fvarIdToLemmaId := fvarIdToLemmaId.insert fvarId id
-        let simpTheorems ← ctx.simpTheorems.add #[] proof (name? := id)
+        simpTheorems ← simpTheorems.addTheorem proof (name? := id)
         ctx := { ctx with simpTheorems }
     return { ctx, fvarIdToLemmaId, dischargeWrapper }

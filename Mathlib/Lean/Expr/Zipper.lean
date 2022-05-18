@@ -3,8 +3,7 @@ import Mathlib.Lean.Expr.Binder
 
 namespace Lean.Expr
 
-#check Expr
-
+/-- An enum for each recursive argument in the Expr constructors. -/
 inductive Coord where
 | appFn | appArg
 | lamType | lamBody
@@ -12,7 +11,6 @@ inductive Coord where
 | letType | letValue | letBody
 | mdata
 | proj
-
 
 /-- Returns the set of coordinates that are valid for a given expression. -/
 def coords : Expr → List Coord

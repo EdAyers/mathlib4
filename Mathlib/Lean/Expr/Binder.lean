@@ -1,11 +1,6 @@
 import Lean
+import Mathlib.Lean.Expr.Basic
 open Lean
-
-def Lean.BinderInfo.brackets : BinderInfo → String × String
-| BinderInfo.implicit => ("{", "}")
-| BinderInfo.strictImplicit => ("⦃", "⦄")
-| BinderInfo.instImplicit => ("[", "]")
-| _ => ("(",")")
 
 structure Binder :=
   (name : Name)
